@@ -3,6 +3,12 @@ services:
     build:
       context: ./backend
     container_name: ai-cost-backend
+    env_file:
+      - .env
+    environment:
+      AWS_PROFILE: default
+    volumes:
+      - ${USERPROFILE}\.aws:/root/.aws:ro
     ports:
       - "8000:8000"
     restart: unless-stopped
