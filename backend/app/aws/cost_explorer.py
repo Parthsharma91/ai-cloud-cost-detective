@@ -76,7 +76,7 @@ def get_service_costs(
 
             service_costs.append({
                 "service": service_name,
-                "cost": round(amount, 2),
+                "cost": amount,
             })
 
     return service_costs
