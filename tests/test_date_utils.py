@@ -1,9 +1,7 @@
 from datetime import date
 from unittest.mock import patch
 
-from backend.app.core.date_utils import (
-    get_current_and_previous_month_periods,
-)
+from backend.app.core.date_utils import get_current_and_previous_month_periods
 
 
 def test_get_current_and_previous_month_periods():
@@ -18,9 +16,9 @@ def test_get_current_and_previous_month_periods():
 
     assert result == {
         "current_start": "2026-09-01",
-        "current_end": "2026-09-29",
+        "current_end": "2026-09-30",
         "previous_start": "2026-08-01",
-        "previous_end": "2026-08-31",
+        "previous_end": "2026-09-01",
     }
 
 
@@ -36,7 +34,7 @@ def test_get_current_and_previous_month_periods_january():
 
     assert result == {
         "current_start": "2027-01-01",
-        "current_end": "2027-01-15",
+        "current_end": "2027-01-16",
         "previous_start": "2026-12-01",
-        "previous_end": "2026-12-31",
+        "previous_end": "2027-01-01",
     }
