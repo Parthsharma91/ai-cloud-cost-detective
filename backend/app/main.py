@@ -1,10 +1,18 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.ai.analyzer import analyze_with_ai
 from backend.app.aws.cost_explorer import (
     get_daily_costs,
     get_monthly_service_comparison,
+    validate_cost_data_provider,
+)
+from backend.app.core.config import (
+    get_ai_provider,
+    get_aws_region,
+    get_cost_data_provider,
 )
 from backend.app.core.date_utils import (
     get_current_and_previous_month_periods,
@@ -26,12 +34,30 @@ app = FastAPI(
     version="0.1.0",
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+    ],
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/")
 def root():
-    return {
-        "message": "AI Cloud Cost Detective API"
-    }
+    return {"message": "AI Cloud Cost Detective API"}
 
 
 @app.get("/health")
@@ -40,6 +66,33 @@ def health_check():
         "status": "healthy",
         "service": "ai-cloud-cost-detective",
         "version": "0.1.0",
+    }
+
+
+@app.get("/health/ready")
+def readiness_check():
+    provider = get_cost_data_provider()
+
+    try:
+        validate_cost_data_provider(provider)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "not_ready",
+                "service": "ai-cloud-cost-detective",
+                "reason": str(exc),
+            },
+        ) from exc
+
+    return {
+        "status": "ready",
+        "service": "ai-cloud-cost-detective",
+        "configuration": {
+            "aws_region": get_aws_region(),
+            "ai_provider": get_ai_provider(),
+            "cost_data_provider": provider,
+        },
     }
 
 
@@ -66,9 +119,7 @@ def cost_spikes():
         end_date=periods["current_end"],
     )
 
-    return {
-        "spikes": detect_cost_spikes(daily_costs)
-    }
+    return {"spikes": detect_cost_spikes(daily_costs)}
 
 
 @app.get("/costs/anomalies")
@@ -88,16 +139,13 @@ def cost_anomalies():
         analysis["service_breakdown"]
     )
 
-    return {
-        "anomalies": anomalies
-    }
+    return {"anomalies": anomalies}
 
 
 @app.get("/costs/dashboard")
 def cost_dashboard():
     periods = get_current_and_previous_month_periods()
 
-    # Fetch monthly service comparison
     cost_data = get_monthly_service_comparison(
         current_start=periods["current_start"],
         current_end=periods["current_end"],
@@ -105,19 +153,15 @@ def cost_dashboard():
         previous_end=periods["previous_end"],
     )
 
-    # Analyze overall costs and services
     analysis = analyze_costs(cost_data)
 
-    # Fetch daily costs
     daily_costs = get_daily_costs(
         start_date=periods["current_start"],
         end_date=periods["current_end"],
     )
 
-    # Detect daily cost spikes
     spikes = detect_cost_spikes(daily_costs)
 
-    # Detect service anomalies
     anomalies = detect_service_anomalies(
         analysis["service_breakdown"]
     )
@@ -136,9 +180,7 @@ def cost_dashboard():
                 "top_service_by_cost_increase"
             ],
         },
-        "service_breakdown": analysis[
-            "service_breakdown"
-        ],
+        "service_breakdown": analysis["service_breakdown"],
         "daily_costs": daily_costs,
         "spikes": spikes,
         "anomalies": anomalies,
@@ -149,7 +191,6 @@ def cost_dashboard():
 def ai_analyze(request: AIAnalysisRequest):
     periods = get_current_and_previous_month_periods()
 
-    # Fetch monthly service comparison
     cost_data = get_monthly_service_comparison(
         current_start=periods["current_start"],
         current_end=periods["current_end"],
@@ -157,39 +198,26 @@ def ai_analyze(request: AIAnalysisRequest):
         previous_end=periods["previous_end"],
     )
 
-    # Analyze overall costs and services
     analysis = analyze_costs(cost_data)
 
-    # Fetch daily costs
     daily_costs = get_daily_costs(
         start_date=periods["current_start"],
         end_date=periods["current_end"],
     )
 
-    # Detect daily cost spikes
     spikes = detect_cost_spikes(daily_costs)
 
-    # Detect service anomalies
     anomalies = detect_service_anomalies(
         analysis["service_breakdown"]
     )
 
-    # Build the complete investigation context
     investigation_data = {
         "period": periods,
         "summary": {
-            "total_current_cost": analysis[
-                "total_current_cost"
-            ],
-            "total_previous_cost": analysis[
-                "total_previous_cost"
-            ],
-            "change_percentage": analysis[
-                "change_percentage"
-            ],
-            "top_service": analysis[
-                "top_service"
-            ],
+            "total_current_cost": analysis["total_current_cost"],
+            "total_previous_cost": analysis["total_previous_cost"],
+            "change_percentage": analysis["change_percentage"],
+            "top_service": analysis["top_service"],
             "top_service_by_increase": analysis[
                 "top_service_by_increase"
             ],
@@ -197,9 +225,7 @@ def ai_analyze(request: AIAnalysisRequest):
                 "top_service_by_cost_increase"
             ],
         },
-        "service_breakdown": analysis[
-            "service_breakdown"
-        ],
+        "service_breakdown": analysis["service_breakdown"],
         "daily_costs": daily_costs,
         "spikes": spikes,
         "anomalies": anomalies,
