@@ -141,3 +141,78 @@ def test_analyze_with_ai_response_structure():
     assert "recommendations" in analysis
     assert "estimated_savings" in analysis
     assert "confidence" in analysis
+
+def test_analyze_with_ai_contains_structured_analysis():
+    investigation_data = {
+        "summary": {
+            "total_current_cost": 165.75,
+            "total_previous_cost": 134.50,
+            "change_percentage": 23.23,
+        },
+        "service_breakdown": [
+            {
+                "service": "EC2",
+                "cost": 72.30,
+                "previous_cost": 55.00,
+                "percentage": 43.62,
+                "change_percentage": 31.45,
+            }
+        ],
+        "daily_costs": [],
+        "spikes": [],
+        "anomalies": [],
+    }
+
+    result = analyze_with_ai(
+        question="Why did my AWS cost increase?",
+        investigation_data=investigation_data,
+    )
+
+    structured = result["structured_analysis"]
+
+    assert structured["provider"] == "mock"
+    assert structured["question"] == (
+        "Why did my AWS cost increase?"
+    )
+    assert isinstance(structured["summary"], str)
+    assert isinstance(structured["findings"], list)
+    assert isinstance(structured["recommendations"], list)
+    assert structured["risk_level"] in {
+        "low",
+        "medium",
+        "high",
+    }
+
+
+def test_structured_analysis_contains_finding():
+    investigation_data = {
+        "summary": {
+            "total_current_cost": 165.75,
+            "total_previous_cost": 134.50,
+            "change_percentage": 23.23,
+        },
+        "service_breakdown": [
+            {
+                "service": "EC2",
+                "cost": 72.30,
+                "previous_cost": 55.00,
+                "percentage": 43.62,
+                "change_percentage": 31.45,
+            }
+        ],
+        "daily_costs": [],
+        "spikes": [],
+        "anomalies": [],
+    }
+
+    result = analyze_with_ai(
+        question="Why did my AWS cost increase?",
+        investigation_data=investigation_data,
+    )
+
+    findings = result["structured_analysis"]["findings"]
+
+    assert len(findings) >= 1
+    assert findings[0]["service"] == "EC2"
+    assert "evidence" in findings[0]
+    assert "issue" in findings[0]
