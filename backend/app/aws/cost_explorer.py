@@ -126,8 +126,8 @@ def get_monthly_service_comparison(
 
         comparison.append({
             "service": service,
-            "current_cost": round(current_cost, 2),
-            "previous_cost": round(previous_cost, 2),
+            "current_cost": current_cost,
+            "previous_cost": previous_cost,
         })
 
     comparison.sort(
@@ -169,7 +169,7 @@ def get_daily_costs(
 
         daily_costs.append({
             "date": result["TimePeriod"]["Start"],
-            "cost": round(amount, 2),
+            "cost": amount,
         })
 
     return daily_costs
