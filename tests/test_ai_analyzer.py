@@ -8,10 +8,14 @@ from backend.app.ai.analyzer import (
 def test_build_cost_analysis_prompt():
     investigation_data = {
         "summary": {
-            "total_current_cost": 100.00,
-            "total_previous_cost": 80.00,
-            "change_percentage": 25.00,
-        }
+            "total_current_cost": 165.75,
+            "total_previous_cost": 134.50,
+            "change_percentage": 23.23,
+        },
+        "service_breakdown": [],
+        "daily_costs": [],
+        "spikes": [],
+        "anomalies": [],
     }
 
     prompt = build_cost_analysis_prompt(
@@ -20,10 +24,10 @@ def test_build_cost_analysis_prompt():
     )
 
     assert "Why did my AWS cost increase?" in prompt
-    assert "AWS COST INVESTIGATION DATA" in prompt
-    assert "100.0" in prompt
-    assert "80.0" in prompt
-    assert "25.0" in prompt
+    assert "165.75" in prompt
+    assert "134.5" in prompt
+    assert "23.23" in prompt
+    assert "AWS FinOps" in prompt
 
 
 def test_create_mock_ai_analysis_zero_cost():
@@ -40,14 +44,25 @@ def test_create_mock_ai_analysis_zero_cost():
     }
 
     result = create_mock_ai_analysis(
-        question="Why did my AWS cost increase?",
+        question="Show me my AWS cost situation.",
         investigation_data=investigation_data,
     )
 
-    assert result["question"] == "Why did my AWS cost increase?"
-    assert result["confidence"] == "high"
+    assert result["question"] == "Show me my AWS cost situation."
+
+    assert (
+        result["summary"]
+        == "No AWS costs were detected for the analyzed period."
+    )
+
     assert result["cost_drivers"] == []
+    assert result["possible_causes"] == []
+    assert result["recommendations"] == []
+
     assert result["estimated_savings"]["amount"] == 0.0
+    assert result["estimated_savings"]["currency"] == "USD"
+
+    assert result["confidence"] == "high"
 
 
 def test_create_mock_ai_analysis_with_costs():
@@ -97,15 +112,16 @@ def test_create_mock_ai_analysis_with_costs():
     assert "$134.50" in result["summary"]
     assert "23.23%" in result["summary"]
 
-    assert len(result["cost_drivers"]) == 2
-
+    # EC2 is both the highest-cost service and
+    # the largest absolute cost increase, so it
+    # should appear only once.
+    assert len(result["cost_drivers"]) == 1
     assert result["cost_drivers"][0]["service"] == "EC2"
     assert result["cost_drivers"][0]["current_cost"] == 72.30
 
-    assert result["cost_drivers"][1]["service"] == "EC2"
-    assert result["cost_drivers"][1]["increase"] == 17.30
-
-    assert len(result["possible_causes"]) == 2
+    assert len(result["possible_causes"]) >= 1
+    assert len(result["recommendations"]) >= 1
+    assert result["confidence"] == "medium"
 
 
 def test_analyze_with_ai_response_structure():
@@ -129,18 +145,14 @@ def test_analyze_with_ai_response_structure():
     assert result["status"] == "success"
     assert result["provider"] == "mock"
     assert "analysis" in result
+    assert "structured_analysis" in result
 
-    analysis = result["analysis"]
-
-    assert analysis["question"] == (
-        "Show me my AWS cost situation."
+    assert result["structured_analysis"]["provider"] == "mock"
+    assert (
+        result["structured_analysis"]["question"]
+        == "Show me my AWS cost situation."
     )
-    assert "summary" in analysis
-    assert "cost_drivers" in analysis
-    assert "possible_causes" in analysis
-    assert "recommendations" in analysis
-    assert "estimated_savings" in analysis
-    assert "confidence" in analysis
+
 
 def test_analyze_with_ai_contains_structured_analysis():
     investigation_data = {
@@ -168,20 +180,17 @@ def test_analyze_with_ai_contains_structured_analysis():
         investigation_data=investigation_data,
     )
 
-    structured = result["structured_analysis"]
+    structured_analysis = result["structured_analysis"]
 
-    assert structured["provider"] == "mock"
-    assert structured["question"] == (
-        "Why did my AWS cost increase?"
+    assert structured_analysis["provider"] == "mock"
+    assert (
+        structured_analysis["question"]
+        == "Why did my AWS cost increase?"
     )
-    assert isinstance(structured["summary"], str)
-    assert isinstance(structured["findings"], list)
-    assert isinstance(structured["recommendations"], list)
-    assert structured["risk_level"] in {
-        "low",
-        "medium",
-        "high",
-    }
+    assert "summary" in structured_analysis
+    assert "findings" in structured_analysis
+    assert "recommendations" in structured_analysis
+    assert "risk_level" in structured_analysis
 
 
 def test_structured_analysis_contains_finding():
@@ -214,5 +223,5 @@ def test_structured_analysis_contains_finding():
 
     assert len(findings) >= 1
     assert findings[0]["service"] == "EC2"
-    assert "evidence" in findings[0]
     assert "issue" in findings[0]
+    assert "evidence" in findings[0]

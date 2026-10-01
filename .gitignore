@@ -35,3 +35,9 @@ crash.*.log
 
 # Logs
 *.log
+
+#frontend environment 
+frontend/.env.local
+
+# Frontend dependencies
+node_modules/

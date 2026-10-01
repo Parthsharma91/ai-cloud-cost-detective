@@ -1,14 +1,23 @@
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from backend.app.aws.cost_explorer import (
     get_daily_costs,
     get_monthly_service_comparison,
     get_service_costs,
+    validate_cost_data_provider,
 )
 
 
+@patch("backend.app.aws.cost_explorer.get_cost_data_provider")
 @patch("backend.app.aws.cost_explorer.get_cost_explorer_client")
-def test_get_service_costs(mock_get_client):
+def test_get_service_costs(
+    mock_get_client,
+    mock_get_provider,
+):
+    mock_get_provider.return_value = "aws"
+
     mock_client = MagicMock()
 
     mock_client.get_cost_and_usage.return_value = {
@@ -63,8 +72,14 @@ def test_get_service_costs(mock_get_client):
     mock_client.get_cost_and_usage.assert_called_once()
 
 
+@patch("backend.app.aws.cost_explorer.get_cost_data_provider")
 @patch("backend.app.aws.cost_explorer.get_service_costs")
-def test_get_monthly_service_comparison(mock_get_service_costs):
+def test_get_monthly_service_comparison(
+    mock_get_service_costs,
+    mock_get_provider,
+):
+    mock_get_provider.return_value = "aws"
+
     mock_get_service_costs.side_effect = [
         [
             {
@@ -111,8 +126,14 @@ def test_get_monthly_service_comparison(mock_get_service_costs):
     assert mock_get_service_costs.call_count == 2
 
 
+@patch("backend.app.aws.cost_explorer.get_cost_data_provider")
 @patch("backend.app.aws.cost_explorer.get_cost_explorer_client")
-def test_get_daily_costs(mock_get_client):
+def test_get_daily_costs(
+    mock_get_client,
+    mock_get_provider,
+):
+    mock_get_provider.return_value = "aws"
+
     mock_client = MagicMock()
 
     mock_client.get_cost_and_usage.return_value = {
@@ -163,3 +184,12 @@ def test_get_daily_costs(mock_get_client):
     ]
 
     mock_client.get_cost_and_usage.assert_called_once()
+
+
+def test_validate_cost_data_provider_accepts_aws():
+    assert validate_cost_data_provider("aws") == "aws"
+
+
+def test_validate_cost_data_provider_rejects_invalid_provider():
+    with pytest.raises(ValueError, match="Unsupported cost data provider"):
+        validate_cost_data_provider("awss")

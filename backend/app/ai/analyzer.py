@@ -13,11 +13,25 @@ def build_cost_analysis_prompt(
     question: str,
     investigation_data: dict[str, Any],
 ) -> str:
-    summary = investigation_data.get("summary", {})
+    summary = investigation_data.get(
+        "summary",
+        {},
+    )
 
-    total_current_cost = summary.get("total_current_cost", 0.0)
-    total_previous_cost = summary.get("total_previous_cost", 0.0)
-    change_percentage = summary.get("change_percentage", 0.0)
+    total_current_cost = summary.get(
+        "total_current_cost",
+        0.0,
+    )
+
+    total_previous_cost = summary.get(
+        "total_previous_cost",
+        0.0,
+    )
+
+    change_percentage = summary.get(
+        "change_percentage",
+        0.0,
+    )
 
     return f"""
 You are an AWS FinOps and cloud cost analysis assistant.
@@ -57,16 +71,21 @@ def create_mock_ai_analysis(
     question: str,
     investigation_data: dict[str, Any],
 ) -> dict[str, Any]:
-    summary_data = investigation_data.get("summary", {})
+    summary_data = investigation_data.get(
+        "summary",
+        {},
+    )
 
     total_current_cost = summary_data.get(
         "total_current_cost",
         0.0,
     )
+
     total_previous_cost = summary_data.get(
         "total_previous_cost",
         0.0,
     )
+
     change_percentage = summary_data.get(
         "change_percentage",
         0.0,
@@ -87,13 +106,46 @@ def create_mock_ai_analysis(
         [],
     )
 
+    # Handle the zero-cost edge case explicitly.
+    #
+    # If both the current and previous periods contain
+    # no AWS costs, there are no meaningful cost drivers,
+    # causes, anomalies, or optimization recommendations
+    # to report.
+    if (
+        total_current_cost == 0.0
+        and total_previous_cost == 0.0
+    ):
+        return {
+            "question": question,
+            "summary": (
+                "No AWS costs were detected for "
+                "the analyzed period."
+            ),
+            "cost_drivers": [],
+            "possible_causes": [],
+            "recommendations": [],
+            "estimated_savings": {
+                "amount": 0.0,
+                "currency": "USD",
+                "basis": (
+                    "No AWS costs were detected, "
+                    "so no savings estimate is applicable."
+                ),
+            },
+            "confidence": "high",
+        }
+
     cost_drivers = []
 
     # Identify the actual highest-cost service.
     if service_breakdown:
         top_service = max(
             service_breakdown,
-            key=lambda item: item.get("cost", 0.0),
+            key=lambda item: item.get(
+                "cost",
+                0.0,
+            ),
         )
 
         cost_drivers.append(
@@ -123,18 +175,27 @@ def create_mock_ai_analysis(
     )
 
     if top_service_by_cost_increase:
-        cost_drivers.append(
-            {
-                "service": top_service_by_cost_increase.get(
-                    "service",
-                    "Unknown",
-                ),
-                "increase": top_service_by_cost_increase.get(
-                    "increase",
-                    0.0,
-                ),
-            }
+        increase_service = top_service_by_cost_increase.get(
+            "service",
+            "Unknown",
         )
+
+        # Avoid adding the same service twice.
+        existing_services = {
+            driver.get("service")
+            for driver in cost_drivers
+        }
+
+        if increase_service not in existing_services:
+            cost_drivers.append(
+                {
+                    "service": increase_service,
+                    "increase": top_service_by_cost_increase.get(
+                        "increase",
+                        0.0,
+                    ),
+                }
+            )
 
     possible_causes = []
 
@@ -153,27 +214,25 @@ def create_mock_ai_analysis(
             "A daily cost spike was detected during the analyzed period."
         )
 
-    if total_current_cost == 0.0 and total_previous_cost == 0.0:
-        summary = (
-            "No AWS costs were detected for the analyzed period."
-        )
-        confidence = "high"
-    else:
-        summary = (
-            f"AWS costs increased from "
-            f"${total_previous_cost:.2f} to "
-            f"${total_current_cost:.2f}, "
-            f"representing a "
-            f"{change_percentage:.2f}% change."
-        )
-        confidence = "medium"
+    summary = (
+        f"AWS costs increased from "
+        f"${total_previous_cost:.2f} to "
+        f"${total_current_cost:.2f}, "
+        f"representing a "
+        f"{change_percentage:.2f}% change."
+    )
+
+    confidence = "medium"
 
     recommendations = []
 
     if service_breakdown:
         top_service = max(
             service_breakdown,
-            key=lambda item: item.get("cost", 0.0),
+            key=lambda item: item.get(
+                "cost",
+                0.0,
+            ),
         )
 
         service_name = top_service.get(
@@ -204,6 +263,7 @@ def create_mock_ai_analysis(
             "service",
             "the service",
         )
+
         service_change = top_service_by_increase.get(
             "change_percentage",
             0.0,
@@ -227,17 +287,22 @@ def create_mock_ai_analysis(
     if spikes:
         largest_spike = max(
             spikes,
-            key=lambda item: item.get("increase_percentage", 0.0),
+            key=lambda item: item.get(
+                "increase_percentage",
+                0.0,
+            ),
         )
 
         spike_date = largest_spike.get(
             "date",
             "the detected date",
         )
+
         spike_cost = largest_spike.get(
             "cost",
             0.0,
         )
+
         spike_increase = largest_spike.get(
             "increase_percentage",
             0.0,
@@ -294,7 +359,7 @@ class MockAIProvider(AIProvider):
 
         spikes = investigation_data.get(
             "spikes",
-             [],
+            [],
         )
 
         # Finding: highest-cost service.
@@ -316,16 +381,20 @@ class MockAIProvider(AIProvider):
                     f"${increase:.2f} increase identified "
                     f"for {service}."
                 )
+
                 issue = (
                     "The service has the largest absolute "
                     "cost increase in the investigation data."
                 )
+
                 change_percentage = None
+
             else:
                 percentage = driver.get(
                     "percentage",
                     0.0,
                 )
+
                 service_change = driver.get(
                     "change_percentage",
                     0.0,
@@ -336,10 +405,12 @@ class MockAIProvider(AIProvider):
                     f"{percentage:.2f}% of total spend, "
                     f"with a {service_change:.2f}% change."
                 )
+
                 issue = (
                     "The service is the largest current "
                     "cost contributor."
                 )
+
                 change_percentage = service_change
 
             findings.append(
