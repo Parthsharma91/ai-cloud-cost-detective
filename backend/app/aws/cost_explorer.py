@@ -1,27 +1,51 @@
+from typing import Any
+
 import boto3
 
-from backend.app.core.config import get_aws_region
+from backend.app.aws.mock_cost_explorer import (
+    get_mock_daily_costs,
+    get_mock_previous_service_costs,
+    get_mock_service_costs,
+)
+from backend.app.core.config import (
+    get_aws_region,
+    get_cost_data_provider,
+)
 
+
+SUPPORTED_COST_DATA_PROVIDERS = {
+    "aws",
+    "mock",
+}
 
 def get_cost_explorer_client():
-    """
-    Create the AWS Cost Explorer client using the
-    configured AWS region.
-    """
-
     return boto3.client(
         "ce",
         region_name=get_aws_region(),
     )
 
 
+def validate_cost_data_provider(provider: str) -> str:
+    if provider not in SUPPORTED_COST_DATA_PROVIDERS:
+        raise ValueError(
+            f"Unsupported cost data provider: {provider}. "
+            f"Supported providers: "
+            f"{', '.join(sorted(SUPPORTED_COST_DATA_PROVIDERS))}"
+        )
+
+    return provider
+
+
 def get_service_costs(
     start_date: str,
     end_date: str,
-):
-    """
-    Fetch AWS costs grouped by service.
-    """
+) -> list[dict[str, Any]]:
+    provider = validate_cost_data_provider(
+        get_cost_data_provider()
+    )
+
+    if provider == "mock":
+        return get_mock_service_costs()
 
     client = get_cost_explorer_client()
 
@@ -63,21 +87,24 @@ def get_monthly_service_comparison(
     current_end: str,
     previous_start: str,
     previous_end: str,
-):
-    """
-    Fetch current and previous period AWS costs
-    grouped by service and combine them for comparison.
-    """
-
-    current_costs = get_service_costs(
-        current_start,
-        current_end,
+) -> list[dict[str, Any]]:
+    provider = validate_cost_data_provider(
+        get_cost_data_provider()
     )
 
-    previous_costs = get_service_costs(
-        previous_start,
-        previous_end,
-    )
+    if provider == "mock":
+        current_costs = get_mock_service_costs()
+        previous_costs = get_mock_previous_service_costs()
+    else:
+        current_costs = get_service_costs(
+            current_start,
+            current_end,
+        )
+
+        previous_costs = get_service_costs(
+            previous_start,
+            previous_end,
+        )
 
     current_map = {
         item["service"]: item["cost"]
@@ -114,10 +141,13 @@ def get_monthly_service_comparison(
 def get_daily_costs(
     start_date: str,
     end_date: str,
-):
-    """
-    Fetch AWS costs grouped by day.
-    """
+) -> list[dict[str, Any]]:
+    provider = validate_cost_data_provider(
+        get_cost_data_provider()
+    )
+
+    if provider == "mock":
+        return get_mock_daily_costs()
 
     client = get_cost_explorer_client()
 
@@ -143,3 +173,4 @@ def get_daily_costs(
         })
 
     return daily_costs
+
